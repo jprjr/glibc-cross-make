@@ -19,7 +19,7 @@ MPC_SITE = $(GNU_SITE)/mpc
 MPFR_SITE = $(GNU_SITE)/mpfr
 ISL_SITE = http://isl.gforge.inria.fr/
 
-MUSL_SITE = https://www.musl-libc.org/releases
+MUSL_SITE = http://www.musl-libc.org/releases
 MUSL_REPO = git://git.musl-libc.org/musl
 
 LINUX_SITE = https://cdn.kernel.org/pub/linux/kernel

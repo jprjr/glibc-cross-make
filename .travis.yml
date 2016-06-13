@@ -1,0 +1,11 @@
+language: c
+compiler: gcc
+env:
+- TRIPLET=i486-linux-musl
+- TRIPLET=x86_64-linux-musl
+- TRIPLET=arm-linux-musleabi
+- TRIPLET=arm-linux-musleabihf
+script:
+- travis_wait 60 bash -e ${TRAVIS_BUILD_DIR}/.travis.yml.script $TRIPLET
+after_failure:
+- bash -e ${TRAVIS_BUILD_DIR}/.travis.yml.after_failure
