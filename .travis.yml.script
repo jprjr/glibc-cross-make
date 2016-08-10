@@ -11,8 +11,8 @@ fi
 declare -A versions
 versions[binutils]=2.25.1
 versions[gcc]=5.3.0
-versions[musl]=1.1.14
-versions[gmp]=6.1.0
+versions[musl]=1.1.15
+versions[gmp]=6.1.1
 versions[mpc]=1.0.3
 versions[mpfr]=3.1.4
 versions[linux]=4.4.10
