@@ -5,45 +5,48 @@ BINUTILS_SRCDIR = BINUTILS_SRCDIR_not_set
 GCC_SRCDIR = GCC_SRCDIR_not_set
 MUSL_SRCDIR = MUSL_SRCDIR_not_set
 
-COMMON_CONFIG = --enable-languages=c,c++
-GCC_CONFIG = $(COMMON_CONFIG) 
-TOOLCHAIN_CONFIG = $(GCC_CONFIG)
+GCC_CONFIG_FOR_TARGET = 
+COMMON_CONFIG = 
+GCC_CONFIG = 
+TOOLCHAIN_CONFIG = 
 
 XGCC_DIR = ../obj_toolchain/gcc
 XGCC = $(XGCC_DIR)/xgcc -B $(XGCC_DIR)
 
+-include config.mak
+
 ifneq ($(findstring fdpic,$(TARGET)),)
-GCC_CONFIG += --enable-fdpic
+GCC_CONFIG_FOR_TARGET += --enable-fdpic
 endif
 
 ifneq ($(filter x86_64%x32,$(TARGET)),)
-GCC_CONFIG += --with-abi=x32
+GCC_CONFIG_FOR_TARGET += --with-abi=x32
 endif
 
 ifneq ($(findstring mips64,$(TARGET))$(findstring mipsisa64,$(TARGET)),)
 ifneq ($(findstring n32,$(TARGET)),)
-GCC_CONFIG += --with-abi=n32
+GCC_CONFIG_FOR_TARGET += --with-abi=n32
 else
-GCC_CONFIG += --with-abi=64
+GCC_CONFIG_FOR_TARGET += --with-abi=64
 endif
 endif
 
 ifneq ($(filter %sf,$(TARGET)),)
-GCC_CONFIG += --with-float=soft
+GCC_CONFIG_FOR_TARGET += --with-float=soft
 endif
 
 ifneq ($(filter %hf,$(TARGET)),)
-GCC_CONFIG += --with-float=hard
+GCC_CONFIG_FOR_TARGET += --with-float=hard
 endif
 
-
--include config.mak
 
 MAKE += MULTILIB_OSDIRNAMES=
 MAKE += INFO_DEPS= infodir=
 MAKE += ac_cv_prog_lex_root=lex.yy.c
 
-FULL_TOOLCHAIN_CONFIG = $(TOOLCHAIN_CONFIG) \
+FULL_TOOLCHAIN_CONFIG = --enable-languages=c,c++ \
+	$(GCC_CONFIG_FOR_TARGET) \
+	$(COMMON_CONFIG) $(GCC_CONFIG) $(TOOLCHAIN_CONFIG) \
 	--disable-werror \
 	--target=$(TARGET) --prefix= \
 	--libdir=/lib --disable-multilib \
@@ -63,7 +66,7 @@ SYSROOT = /$(TARGET)
 FULL_MUSL_CONFIG += CC="$(XGCC)" LIBCC="../obj_toolchain/$(TARGET)/libgcc/libgcc.a" 
 MUSL_VARS = AR=../obj_toolchain/binutils/ar RANLIB=../obj_toolchain/binutils/ranlib
 obj_musl/.lc_built: | obj_toolchain/$(TARGET)/libgcc/libgcc.a
-obj_toolchain/.lc_built: | obj_sysroot/.lc_libs
+obj_toolchain/.lc_built: | obj_sysroot/.lc_libs obj_sysroot/.lc_headers
 else
 SYSROOT = /
 FULL_TOOLCHAIN_CONFIG += --host=$(TARGET)
@@ -177,7 +180,7 @@ obj_sysroot/.lc_libs: | obj_musl/.lc_built
 	cd obj_musl && $(MAKE) $(MUSL_VARS) DESTDIR=$(PWD)/obj_sysroot install
 	touch $@
 
-obj_toolchain/.lc_built: | obj_toolchain/.lc_configured obj_sysroot/.lc_headers
+obj_toolchain/.lc_built: | obj_toolchain/.lc_configured obj_toolchain/gcc/.lc_built
 	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" LC_ROOT=$(PWD)
 	touch $@
 

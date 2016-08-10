@@ -5,8 +5,8 @@ SOURCES = sources
 CONFIG_SUB_REV = 3d5db9ebe860
 BINUTILS_VER = 2.25.1
 GCC_VER = 5.3.0
-MUSL_VER = 1.1.14
-GMP_VER = 6.1.0
+MUSL_VER = 1.1.15
+GMP_VER = 6.1.1
 MPC_VER = 1.0.3
 MPFR_VER = 3.1.4
 LINUX_VER = 4.4.10
@@ -122,6 +122,8 @@ musl-git-%:
 	touch $@.tmp/$@
 	mv $@.tmp/$@ $@
 	rm -rf $@.tmp
+
+extract_all: | $(SRC_DIRS)
 
 
 # Rules for building.
