@@ -5,6 +5,7 @@ env:
 - TRIPLET=x86_64-linux-musl
 - TRIPLET=arm-linux-musleabi
 - TRIPLET=arm-linux-musleabihf
+- TRIPLET=aarch64-linux-musl
 script:
 - travis_wait 60 bash -e ${TRAVIS_BUILD_DIR}/.travis.yml.script $TRIPLET
 after_failure:
