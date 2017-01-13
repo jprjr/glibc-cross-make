@@ -1,11 +1,11 @@
 
-OUTPUT = $(PWD)/output
+OUTPUT = $(CURDIR)/output
 SOURCES = sources
 
 CONFIG_SUB_REV = 3d5db9ebe860
-BINUTILS_VER = 2.25.1
-GCC_VER = 5.3.0
-MUSL_VER = 1.1.15
+BINUTILS_VER = 2.27
+GCC_VER = 6.3.0
+MUSL_VER = 1.1.16
 GMP_VER = 6.1.1
 MPC_VER = 1.0.3
 MPFR_VER = 3.1.4
@@ -23,6 +23,8 @@ MUSL_SITE = http://www.musl-libc.org/releases
 MUSL_REPO = git://git.musl-libc.org/musl
 
 LINUX_SITE = https://cdn.kernel.org/pub/linux/kernel
+
+DL_CMD = wget -c -O
 
 BUILD_DIR = build-$(TARGET)
 
@@ -65,17 +67,17 @@ $(SOURCES):
 
 $(SOURCES)/config.sub: | $(SOURCES)
 	mkdir -p $@.tmp
-	cd $@.tmp && wget -c -O $(notdir $@) "http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=$(CONFIG_SUB_REV)"
+	cd $@.tmp && $(DL_CMD) $(notdir $@) "http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=$(CONFIG_SUB_REV)"
 	cd $@.tmp && touch $(notdir $@)
-	cd $@.tmp && sha1sum -c $(PWD)/hashes/$(notdir $@).$(CONFIG_SUB_REV).sha1
+	cd $@.tmp && sha1sum -c $(CURDIR)/hashes/$(notdir $@).$(CONFIG_SUB_REV).sha1
 	mv $@.tmp/$(notdir $@) $@
 	rm -rf $@.tmp
 
 $(SOURCES)/%: hashes/%.sha1 | $(SOURCES)
 	mkdir -p $@.tmp
-	cd $@.tmp && wget -c -O $(notdir $@) $(SITE)/$(notdir $@)
+	cd $@.tmp && $(DL_CMD) $(notdir $@) $(SITE)/$(notdir $@)
 	cd $@.tmp && touch $(notdir $@)
-	cd $@.tmp && sha1sum -c $(PWD)/hashes/$(notdir $@).sha1
+	cd $@.tmp && sha1sum -c $(CURDIR)/hashes/$(notdir $@).sha1
 	mv $@.tmp/$(notdir $@) $@
 	rm -rf $@.tmp
 
@@ -143,7 +145,7 @@ $(BUILD_DIR)/Makefile: | $(BUILD_DIR)
 	ln -sf ../litecross/Makefile $@
 
 $(BUILD_DIR)/config.mak: | $(BUILD_DIR)
-	printf >$@ -- '%s\n' \
+	printf >$@ '%s\n' \
 	"MUSL_SRCDIR = ../musl-$(MUSL_VER)" \
 	"GCC_SRCDIR = ../gcc-$(GCC_VER)" \
 	"BINUTILS_SRCDIR = ../binutils-$(BINUTILS_VER)" \

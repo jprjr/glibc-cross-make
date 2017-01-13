@@ -14,7 +14,7 @@ cross compilers. Features include:
 - Ability to build multiple cross compilers for different targets
   using a single set of patched source trees.
 
-- Nothing is installed until running "make install", and the
+- Nothing is installed until running `make install`, and the
   installation location can be chosen at install time.
 
 - Automatic download of source packages, including GCC prerequisites
@@ -28,16 +28,37 @@ cross compilers. Features include:
 Usage
 -----
 
-The build system can be configured by providing a config.mak file in
-the top-level directory. The only mandatory variable is TARGET, which
-should contain a gcc target tuple (such as i486-linux-musl), but many
-more options are available. See the provided config.mak.dist and
-presets/* for examples.
+The build system can be configured by providing a `config.mak` file in
+the top-level directory. The only mandatory variable is `TARGET`, which
+should contain a gcc target tuple (such as `i486-linux-musl`), but many
+more options are available. See the provided `config.mak.dist` and
+`presets/*` for examples.
 
-To compile, run make. To install to $(OUTPUT), run "make install".
+To compile, run `make`. To install to `$(OUTPUT)`, run `make install`.
 
-The default value for $(OUTPUT) is output; after installing here you
+The default value for `$(OUTPUT)` is output; after installing here you
 can move the cross compiler toolchain to another location as desired.
+
+
+
+Supported `TARGET`s
+-------------------
+
+The following is a non-exhaustive list of `$(TARGET)` tuples that are
+believed to work:
+
+- `aarch64[_be]-linux-musl`
+- `arm[eb]-linux-musleabi[hf]`
+- `i*86-linux-musl`
+- `microblaze[el]-linux-musl`
+- `mips-linux-musl`
+- `mips[el]-linux-musl[sf]`
+- `mips64[el]-linux-musl[n32][sf]`
+- `powerpc-linux-musl[sf]`
+- `powerpc64[le]-linux-musl`
+- `s390x-linux-musl`
+- `sh*[eb]-linux-musl[fdpic][sf]`
+- `x86_64-linux-musl[x32]`
 
 
 
@@ -55,7 +76,7 @@ The current musl-cross-make is factored into two layers:
 
 Most of the real magic takes place in litecross. It begins by setting
 up symlinks to all the source trees provided to it by the caller, then
-builds a combined "src_toolchain" directory of symlinks that combines
+builds a combined `src_toolchain` directory of symlinks that combines
 the contents of the top-level gcc and binutils source trees and
 symlinks to gmp, mpc, and mpfr. One configured invocation them
 configures all the GNU toolchain components together in a manner that
@@ -64,12 +85,12 @@ to use them.
 
 Rather than building the whole toolchain tree at once, though,
 litecross starts by building just the gcc directory and its
-prerequisites, to get an "xgcc" that can be used to configure musl. It
+prerequisites, to get an `xgcc` that can be used to configure musl. It
 then configures musl, installs musl's headers to a staging "build
-sysroot", and builds libgcc.a using those headers. At this point it
-has all the prerequisites to build musl libc.a and libc.so, which the
+sysroot", and builds `libgcc.a` using those headers. At this point it
+has all the prerequisites to build musl `libc.a` and `libc.so`, which the
 rest of the gcc target-libs depend on; once they are built, the full
-toolchain "make all" can proceed.
+toolchain `make all` can proceed.
 
 Litecross does not actually depend on the musl-cross-make top-level
 build system; it can be used with any pre-extracted, properly patched
@@ -111,7 +132,7 @@ In addition to canonical musl support patches for GCC,
 musl-cross-make's patch set provides:
 
 - Static-linked PIE support
-- Addition of --enable-default-pie
+- Addition of `--enable-default-pie`
 - Fixes for SH-specific bugs and bitrot in GCC
 - Support for J2 Core CPU target in GCC & binutils
 - SH/FDPIC ABI support
@@ -121,4 +142,5 @@ They should also be usable with Gregor's original musl-cross or other
 build systems, if desired.
 
 Some functionality (SH/FDPIC, and support for J2 specific features) is
-presently only available with gcc 5.2.0 and binutils 2.25.1.
+presently only available with gcc 5.2.0 and later, and binutils 2.25.1
+and later.

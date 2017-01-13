@@ -1,5 +1,5 @@
 
-OUTPUT = $(PWD)/output
+OUTPUT = $(CURDIR)/output
 
 BINUTILS_SRCDIR = BINUTILS_SRCDIR_not_set
 GCC_SRCDIR = GCC_SRCDIR_not_set
@@ -23,6 +23,10 @@ ifneq ($(filter x86_64%x32,$(TARGET)),)
 GCC_CONFIG_FOR_TARGET += --with-abi=x32
 endif
 
+ifneq ($(findstring powerpc64,$(TARGET)),)
+GCC_CONFIG_FOR_TARGET += --with-abi=elfv2
+endif
+
 ifneq ($(findstring mips64,$(TARGET))$(findstring mipsisa64,$(TARGET)),)
 ifneq ($(findstring n32,$(TARGET)),)
 GCC_CONFIG_FOR_TARGET += --with-abi=n32
@@ -43,6 +47,7 @@ endif
 MAKE += MULTILIB_OSDIRNAMES=
 MAKE += INFO_DEPS= infodir=
 MAKE += ac_cv_prog_lex_root=lex.yy.c
+MAKE += MAKEINFO=false
 
 FULL_TOOLCHAIN_CONFIG = --enable-languages=c,c++ \
 	$(GCC_CONFIG_FOR_TARGET) \
@@ -51,7 +56,6 @@ FULL_TOOLCHAIN_CONFIG = --enable-languages=c,c++ \
 	--target=$(TARGET) --prefix= \
 	--libdir=/lib --disable-multilib \
 	--with-sysroot=$(SYSROOT) \
-	--with-build-sysroot='$$(LC_ROOT)/obj_sysroot' \
 	--enable-tls \
 	--disable-libmudflap --disable-libsanitizer \
 	--disable-gnu-indirect-function \
@@ -63,9 +67,12 @@ FULL_MUSL_CONFIG = $(MUSL_CONFIG) \
 
 ifeq ($(NATIVE),)
 SYSROOT = /$(TARGET)
+FULL_TOOLCHAIN_CONFIG += --with-build-sysroot=$(CURDIR)/obj_sysroot
 FULL_MUSL_CONFIG += CC="$(XGCC)" LIBCC="../obj_toolchain/$(TARGET)/libgcc/libgcc.a" 
 MUSL_VARS = AR=../obj_toolchain/binutils/ar RANLIB=../obj_toolchain/binutils/ranlib
+obj_musl/.lc_configured: | obj_toolchain/gcc/.lc_built
 obj_musl/.lc_built: | obj_toolchain/$(TARGET)/libgcc/libgcc.a
+obj_toolchain/gcc/.lc_built: | obj_sysroot/usr obj_sysroot/lib64 obj_sysroot/include
 obj_toolchain/.lc_built: | obj_sysroot/.lc_libs obj_sysroot/.lc_headers
 else
 SYSROOT = /
@@ -153,42 +160,38 @@ obj_toolchain/.lc_configured: | obj_toolchain src_toolchain
 	cd obj_toolchain && ../src_toolchain/configure $(FULL_TOOLCHAIN_CONFIG)
 	touch $@
 
-obj_toolchain/gcc/.lc_built: | obj_toolchain/.lc_configured obj_sysroot/usr obj_sysroot/lib64 obj_sysroot/include
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" LC_ROOT=$(PWD) all-gcc
+obj_toolchain/gcc/.lc_built: | obj_toolchain/.lc_configured
+	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" all-gcc
 	touch $@
 
-obj_musl/.lc_configured: | obj_toolchain/gcc/.lc_built obj_musl src_musl
+obj_musl/.lc_configured: | obj_musl src_musl
 	cd obj_musl && ../src_musl/configure $(FULL_MUSL_CONFIG)
 	touch $@
 
 obj_sysroot/.lc_headers: | obj_musl/.lc_configured obj_sysroot
-	cd obj_musl && $(MAKE) DESTDIR=$(PWD)/obj_sysroot install-headers
+	cd obj_musl && $(MAKE) DESTDIR=$(CURDIR)/obj_sysroot install-headers
 	touch $@
 
-obj_toolchain/$(TARGET)/libgcc/.lc_configured: | obj_sysroot/.lc_headers
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" LC_ROOT=$(PWD) configure-target-libgcc
-	touch $@
-
-obj_toolchain/$(TARGET)/libgcc/libgcc.a: | obj_toolchain/$(TARGET)/libgcc/.lc_configured
-	cd $(dir $@) && $(MAKE) MAKE="$(MAKE)" LC_ROOT=$(PWD) libgcc.a
+obj_toolchain/$(TARGET)/libgcc/libgcc.a: | obj_sysroot/.lc_headers
+	cd obj_toolchain && $(MAKE) MAKE="$(MAKE) enable_shared=no" all-target-libgcc
 
 obj_musl/.lc_built: | obj_musl/.lc_configured
 	cd obj_musl && $(MAKE) $(MUSL_VARS)
 	touch $@
 
 obj_sysroot/.lc_libs: | obj_musl/.lc_built
-	cd obj_musl && $(MAKE) $(MUSL_VARS) DESTDIR=$(PWD)/obj_sysroot install
+	cd obj_musl && $(MAKE) $(MUSL_VARS) DESTDIR=$(CURDIR)/obj_sysroot install
 	touch $@
 
 obj_toolchain/.lc_built: | obj_toolchain/.lc_configured obj_toolchain/gcc/.lc_built
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" LC_ROOT=$(PWD)
+	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)"
 	touch $@
 
 install-musl: | obj_musl/.lc_built
 	cd obj_musl && $(MAKE) $(MUSL_VARS) DESTDIR=$(DESTDIR)$(OUTPUT)$(SYSROOT) install
 
 install-toolchain: | obj_toolchain/.lc_built
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" LC_ROOT=$(PWD) DESTDIR=$(DESTDIR)$(OUTPUT) install
+	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" DESTDIR=$(DESTDIR)$(OUTPUT) install
 	ln -sf $(TARGET)-gcc $(DESTDIR)$(OUTPUT)/bin/$(TARGET)-cc
 
 ifneq ($(LINUX_SRCDIR),)
@@ -203,8 +206,9 @@ kernel-headers: | obj_kernel_headers/.lc_built
 src_kernel_headers: | $(LINUX_SRCDIR)
 	ln -sf "$(LINUX_SRCDIR)" $@
 obj_kernel_headers/.lc_built: | src_kernel_headers
-	mkdir -p $(PWD)/obj_kernel_headers/staged
-	cd src_kernel_headers && $(MAKE) ARCH=$(LINUX_ARCH) O=$(PWD)/obj_kernel_headers INSTALL_HDR_PATH=$(PWD)/obj_kernel_headers/staged headers_install
+	mkdir -p $(CURDIR)/obj_kernel_headers/staged
+	cd src_kernel_headers && $(MAKE) ARCH=$(LINUX_ARCH) O=$(CURDIR)/obj_kernel_headers INSTALL_HDR_PATH=$(CURDIR)/obj_kernel_headers/staged headers_install
+	find obj_kernel_headers/staged/include '(' -name .install -o -name ..install.cmd ')' -exec rm {} +
 	touch $@
 install-kernel-headers: | obj_kernel_headers/.lc_built
 	mkdir -p $(DESTDIR)$(OUTPUT)$(SYSROOT)/include
