@@ -77,7 +77,7 @@ done
   --repo "${REPONAME}" \
   --tag "${TRAVIS_TAG}" \
   --name "${TRAVIS_TAG}" \
-  --description "$(cat dist/release.md)" || true
+  --description "$(cat dist/release.md)" >>log/${target} 2>&1 || true
 
 # manifest
 ./github-release upload \
@@ -85,7 +85,7 @@ done
   --repo "${REPONAME}" \
   --tag "${TRAVIS_TAG}" \
   --name "manifest.txt" \
-  --file "dist/manifest.txt" || true
+  --file "dist/manifest.txt" >>log/${target} 2>&1 || true
 
 # compiled gcc
 ./github-release upload \
@@ -93,5 +93,5 @@ done
   --repo "${REPONAME}" \
   --tag "${TRAVIS_TAG}" \
   --name "gcc-${versions[gcc]}-${target}.tar.gz" \
-  --file "dist/gcc-${versions[gcc]}-${target}.tar.gz"
+  --file "dist/gcc-${versions[gcc]}-${target}.tar.gz" >>log/${target} 2>&1
 
