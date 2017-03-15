@@ -2,3 +2,5 @@
 
 cat config.mak
 tail log/*
+
+find . -name 'config.log' -exec bash -c "echo '### {}' ; cat {}" \;
