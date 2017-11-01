@@ -11,10 +11,10 @@ fi
 declare -A versions
 versions[binutils]=2.28.1
 versions[gcc]=7.2.0
-versions[musl]=1.1.17
+versions[musl]=1.1.18
 versions[gmp]=6.1.2
 versions[mpc]=1.0.3
-versions[mpfr]=3.1.5
+versions[mpfr]=3.1.6
 versions[isl]=0.18
 versions[linux]=4.4.10
 
@@ -41,7 +41,7 @@ mkdir -p output
 mkdir -p tools
 
 mkdir -p tools/gcc-i486-linux-musl
-curl -R -L -o tools/gcc-i486-linux-musl.tar.gz "https://github.com/just-containers/musl-cross-make/releases/download/v2/gcc-6.3.0-i486-linux-musl.tar.gz"
+curl -R -L -o tools/gcc-i486-linux-musl.tar.gz "https://github.com/just-containers/musl-cross-make/releases/download/v5/gcc-7.2.0-i486-linux-musl.tar.gz"
 tar xf tools/gcc-i486-linux-musl.tar.gz -C tools/gcc-i486-linux-musl
 
 printf 'COMMON_CONFIG += CC="i486-linux-musl-gcc -static --static" CXX="i486-linux-musl-g++ -static --static"\n' >> config.mak
