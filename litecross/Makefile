@@ -3,7 +3,7 @@ OUTPUT = $(CURDIR)/output
 
 BINUTILS_SRCDIR = BINUTILS_SRCDIR_not_set
 GCC_SRCDIR = GCC_SRCDIR_not_set
-MUSL_SRCDIR = MUSL_SRCDIR_not_set
+GLIBC_SRCDIR = GLIBC_SRCDIR_not_set
 
 GCC_CONFIG_FOR_TARGET = 
 COMMON_CONFIG = 
@@ -62,14 +62,14 @@ FULL_TOOLCHAIN_CONFIG = --enable-languages=c,c++ \
 	--disable-libmpx \
 	--enable-libstdcxx-time
 
-FULL_MUSL_CONFIG = $(MUSL_CONFIG) \
+FULL_GLIBC_CONFIG = $(GLIBC_CONFIG) \
 	--prefix= --host=$(TARGET)
 
 ifeq ($(NATIVE),)
 SYSROOT = /$(TARGET)
 FULL_TOOLCHAIN_CONFIG += --with-build-sysroot=$(CURDIR)/obj_sysroot
-FULL_MUSL_CONFIG += CC="$(XGCC)" LIBCC="../obj_toolchain/$(TARGET)/libgcc/libgcc.a" 
-MUSL_VARS = AR=../obj_toolchain/binutils/ar RANLIB=../obj_toolchain/binutils/ranlib
+FULL_GLIBC_CONFIG += CC="$(XGCC)" LIBCC="../obj_toolchain/$(TARGET)/libgcc/libgcc.a" 
+GLIBC_VARS = AR=../obj_toolchain/binutils/ar RANLIB=../obj_toolchain/binutils/ranlib
 obj_musl/.lc_configured: | obj_toolchain/gcc/.lc_built
 obj_musl/.lc_built: | obj_toolchain/$(TARGET)/libgcc/libgcc.a
 obj_toolchain/gcc/.lc_built: | obj_sysroot/usr obj_sysroot/lib64 obj_sysroot/include
@@ -77,7 +77,7 @@ obj_toolchain/.lc_built: | obj_sysroot/.lc_libs obj_sysroot/.lc_headers
 else
 SYSROOT = /
 FULL_TOOLCHAIN_CONFIG += --host=$(TARGET)
-MUSL_VARS = 
+GLIBC_VARS = 
 endif
 
 ifeq ($(TARGET),)
@@ -106,8 +106,8 @@ src_binutils: | $(BINUTILS_SRCDIR)
 src_gcc: | $(GCC_SRCDIR)
 	ln -sf $(GCC_SRCDIR) $@
 
-src_musl: | $(MUSL_SRCDIR)
-	ln -sf $(MUSL_SRCDIR) $@
+src_musl: | $(GLIBC_SRCDIR)
+	ln -sf $(GLIBC_SRCDIR) $@
 
 ifneq ($(GMP_SRCDIR),)
 src_toolchain: src_gmp
@@ -165,7 +165,7 @@ obj_toolchain/gcc/.lc_built: | obj_toolchain/.lc_configured
 	touch $@
 
 obj_musl/.lc_configured: | obj_musl src_musl
-	cd obj_musl && ../src_musl/configure $(FULL_MUSL_CONFIG)
+	cd obj_musl && ../src_musl/configure $(FULL_GLIBC_CONFIG)
 	touch $@
 
 obj_sysroot/.lc_headers: | obj_musl/.lc_configured obj_sysroot
@@ -176,11 +176,11 @@ obj_toolchain/$(TARGET)/libgcc/libgcc.a: | obj_sysroot/.lc_headers
 	cd obj_toolchain && $(MAKE) MAKE="$(MAKE) enable_shared=no" all-target-libgcc
 
 obj_musl/.lc_built: | obj_musl/.lc_configured
-	cd obj_musl && $(MAKE) $(MUSL_VARS)
+	cd obj_musl && $(MAKE) $(GLIBC_VARS)
 	touch $@
 
 obj_sysroot/.lc_libs: | obj_musl/.lc_built
-	cd obj_musl && $(MAKE) $(MUSL_VARS) DESTDIR=$(CURDIR)/obj_sysroot install
+	cd obj_musl && $(MAKE) $(GLIBC_VARS) DESTDIR=$(CURDIR)/obj_sysroot install
 	touch $@
 
 obj_toolchain/.lc_built: | obj_toolchain/.lc_configured obj_toolchain/gcc/.lc_built
@@ -188,7 +188,7 @@ obj_toolchain/.lc_built: | obj_toolchain/.lc_configured obj_toolchain/gcc/.lc_bu
 	touch $@
 
 install-musl: | obj_musl/.lc_built
-	cd obj_musl && $(MAKE) $(MUSL_VARS) DESTDIR=$(DESTDIR)$(OUTPUT)$(SYSROOT) install
+	cd obj_musl && $(MAKE) $(GLIBC_VARS) DESTDIR=$(DESTDIR)$(OUTPUT)$(SYSROOT) install
 
 install-toolchain: | obj_toolchain/.lc_built
 	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" DESTDIR=$(DESTDIR)$(OUTPUT) install

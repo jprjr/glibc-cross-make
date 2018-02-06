@@ -3,12 +3,12 @@ OUTPUT = $(CURDIR)/output
 SOURCES = sources
 
 CONFIG_SUB_REV = 3d5db9ebe860
-BINUTILS_VER = 2.27
-GCC_VER = 6.3.0
-MUSL_VER = 1.1.16
-GMP_VER = 6.1.1
+BINUTILS_VER = 2.28.1
+GCC_VER = 5.5.0
+GLIBC_VER = 2.19
+GMP_VER = 6.1.2
 MPC_VER = 1.0.3
-MPFR_VER = 3.1.4
+MPFR_VER = 3.1.6
 LINUX_VER = 4.4.10
 
 GNU_SITE = https://ftp.gnu.org/pub/gnu
@@ -19,8 +19,7 @@ MPC_SITE = $(GNU_SITE)/mpc
 MPFR_SITE = $(GNU_SITE)/mpfr
 ISL_SITE = http://isl.gforge.inria.fr/
 
-MUSL_SITE = http://www.musl-libc.org/releases
-MUSL_REPO = git://git.musl-libc.org/musl
+GLIBC_SITE = https://ftp.gnu.org/pub/gnu/glibc/
 
 LINUX_SITE = https://cdn.kernel.org/pub/linux/kernel
 
@@ -30,7 +29,7 @@ BUILD_DIR = build-$(TARGET)
 
 -include config.mak
 
-SRC_DIRS = gcc-$(GCC_VER) binutils-$(BINUTILS_VER) musl-$(MUSL_VER) \
+SRC_DIRS = gcc-$(GCC_VER) binutils-$(BINUTILS_VER) glibc-$(GLIBC_VER) \
 	$(if $(GMP_VER),gmp-$(GMP_VER)) \
 	$(if $(MPC_VER),mpc-$(MPC_VER)) \
 	$(if $(MPFR_VER),mpfr-$(MPFR_VER)) \
@@ -40,7 +39,7 @@ SRC_DIRS = gcc-$(GCC_VER) binutils-$(BINUTILS_VER) musl-$(MUSL_VER) \
 all:
 
 clean:
-	rm -rf gcc-* binutils-* musl-* gmp-* mpc-* mpfr-* isl-* build-* linux-*
+	rm -rf gcc-* binutils-* glibc-* gmp-* mpc-* mpfr-* isl-* build-* linux-*
 
 distclean: clean
 	rm -rf sources
@@ -57,7 +56,7 @@ $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/mpfr*)): SITE = $(MPFR_S
 $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/isl*)): SITE = $(ISL_SITE)
 $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/binutils*)): SITE = $(BINUTILS_SITE)
 $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/gcc*)): SITE = $(GCC_SITE)/$(basename $(basename $(notdir $@)))
-$(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/musl*)): SITE = $(MUSL_SITE)
+$(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/glibc*)): SITE = $(GLIBC_SITE)
 $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/linux-4*)): SITE = $(LINUX_SITE)/v4.x
 $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/linux-3*)): SITE = $(LINUX_SITE)/v3.x
 $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/linux-2.6*)): SITE = $(LINUX_SITE)/v2.6
@@ -85,12 +84,6 @@ endif
 
 
 # Rules for extracting and patching sources, or checking them out from git.
-
-musl-git-%:
-	rm -rf $@.tmp
-	git clone -b $(patsubst musl-git-%,%,$@) $(MUSL_REPO) $@.tmp
-	cd $@.tmp && git fsck
-	mv $@.tmp $@
 
 %: $(SOURCES)/%.tar.gz | $(SOURCES)/config.sub
 	rm -rf $@.tmp
@@ -146,7 +139,7 @@ $(BUILD_DIR)/Makefile: | $(BUILD_DIR)
 
 $(BUILD_DIR)/config.mak: | $(BUILD_DIR)
 	printf >$@ '%s\n' \
-	"MUSL_SRCDIR = ../musl-$(MUSL_VER)" \
+	"GLIBC_SRCDIR = ../glibc-$(GLIBC_VER)" \
 	"GCC_SRCDIR = ../gcc-$(GCC_VER)" \
 	"BINUTILS_SRCDIR = ../binutils-$(BINUTILS_VER)" \
 	$(if $(GMP_VER),"GMP_SRCDIR = ../gmp-$(GMP_VER)") \
