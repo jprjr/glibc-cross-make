@@ -10,9 +10,6 @@ COMMON_CONFIG =
 GCC_CONFIG = 
 TOOLCHAIN_CONFIG = 
 
-XGCC_DIR = ../obj_toolchain/gcc
-XGCC = $(XGCC_DIR)/xgcc -B $(XGCC_DIR)
-
 -include config.mak
 
 ifneq ($(findstring fdpic,$(TARGET)),)
@@ -47,36 +44,40 @@ endif
 MAKE += MULTILIB_OSDIRNAMES=
 MAKE += INFO_DEPS= infodir=
 MAKE += ac_cv_prog_lex_root=lex.yy.c
-MAKE += MAKEINFO=false
 
 FULL_TOOLCHAIN_CONFIG = --enable-languages=c,c++ \
 	$(GCC_CONFIG_FOR_TARGET) \
 	$(COMMON_CONFIG) $(GCC_CONFIG) $(TOOLCHAIN_CONFIG) \
 	--disable-werror \
-	--target=$(TARGET) --prefix= \
+	--target=$(TARGET) --build=$(BUILD) --host=$(BUILD) --prefix= \
 	--libdir=/lib --disable-multilib \
 	--with-sysroot=$(SYSROOT) \
 	--enable-tls \
 	--disable-libmudflap --disable-libsanitizer \
 	--disable-gnu-indirect-function \
 	--disable-libmpx \
-	--enable-libstdcxx-time
+	--enable-libstdcxx-time \
 
 FULL_GLIBC_CONFIG = $(GLIBC_CONFIG) \
-	--prefix= --host=$(TARGET)
+	--prefix= --build=$(BUILD) --target=$(TARGET) --host=$(TARGET) \
+	--enable-kernel=3.2 \
+	--disable-profile \
+	--enable-add-ons \
+	--with-headers=$(CURDIR)/obj_sysroot/include \
+	libc_cv_forced_unwind=yes \
+	libc_cv_c_cleanup=yes \
+	libc_cv_ssp=no libc_cv_ssp_strong=no
 
-ifeq ($(NATIVE),)
+ifneq ($(NATIVE),)
+HOST:=$(TARGET)
+endif
+
+ifeq ($(HOST),)
 SYSROOT = /$(TARGET)
 FULL_TOOLCHAIN_CONFIG += --with-build-sysroot=$(CURDIR)/obj_sysroot
-FULL_GLIBC_CONFIG += CC="$(XGCC)" LIBCC="../obj_toolchain/$(TARGET)/libgcc/libgcc.a" 
-GLIBC_VARS = AR=../obj_toolchain/binutils/ar RANLIB=../obj_toolchain/binutils/ranlib
-obj_musl/.lc_configured: | obj_toolchain/gcc/.lc_built
-obj_musl/.lc_built: | obj_toolchain/$(TARGET)/libgcc/libgcc.a
-obj_toolchain/gcc/.lc_built: | obj_sysroot/usr obj_sysroot/lib64 obj_sysroot/include
-obj_toolchain/.lc_built: | obj_sysroot/.lc_libs obj_sysroot/.lc_headers
 else
 SYSROOT = /
-FULL_TOOLCHAIN_CONFIG += --host=$(TARGET)
+FULL_TOOLCHAIN_CONFIG += --host=$(HOST)
 GLIBC_VARS = 
 endif
 
@@ -90,15 +91,27 @@ install: all
 
 else
 
-all: musl toolchain
+all: glibc toolchain
 
-install: install-musl install-toolchain
+install: install-glibc install-toolchain
 
-musl: obj_musl/.lc_built
+glibc: glibc-stage2
 
-toolchain: obj_toolchain/.lc_built
+toolchain: gcc-stage3
 
-.PHONY: all musl toolchain install-musl install-toolchain clean
+binutils: obj_toolchain/binutils/.lc_built
+
+gcc-stage1: obj_toolchain/gcc/.lc_stage1_built
+
+glibc-stage1: obj_toolchain/glibc/.lc_stage1_built
+
+gcc-stage2: obj_toolchain/gcc/.lc_stage2_built
+
+glibc-stage2: obj_toolchain/glibc/.lc_stage2_built
+
+gcc-stage3: obj_toolchain/gcc/.lc_stage3_built
+
+.PHONY: all glibc toolchain install-glibc install-toolchain clean
 
 src_binutils: | $(BINUTILS_SRCDIR)
 	ln -sf $(BINUTILS_SRCDIR) $@
@@ -106,7 +119,7 @@ src_binutils: | $(BINUTILS_SRCDIR)
 src_gcc: | $(GCC_SRCDIR)
 	ln -sf $(GCC_SRCDIR) $@
 
-src_musl: | $(GLIBC_SRCDIR)
+src_glibc: | $(GLIBC_SRCDIR)
 	ln -sf $(GLIBC_SRCDIR) $@
 
 ifneq ($(GMP_SRCDIR),)
@@ -136,12 +149,14 @@ endif
 src_toolchain: src_binutils src_gcc
 	rm -rf $@ $@.tmp
 	mkdir $@.tmp
-	cd $@.tmp && ln -sf ../src_binutils/* .
-	cd $@.tmp && ln -sf ../src_gcc/* .
-	$(if $(GMP_SRCDIR),cd $@.tmp && ln -sf ../src_gmp gmp)
-	$(if $(MPC_SRCDIR),cd $@.tmp && ln -sf ../src_mpc mpc)
-	$(if $(MPFR_SRCDIR),cd $@.tmp && ln -sf ../src_mpfr mpfr)
-	$(if $(ISL_SRCDIR),cd $@.tmp && ln -sf ../src_isl isl)
+	mkdir $@.tmp/binutils
+	mkdir $@.tmp/gcc
+	cd $@.tmp/binutils && ln -sf ../../src_binutils/* .
+	cd $@.tmp/gcc && ln -sf ../../src_gcc/* .
+	$(if $(GMP_SRCDIR),cd $@.tmp/gcc && ln -sf ../../src_gmp gmp)
+	$(if $(MPC_SRCDIR),cd $@.tmp/gcc && ln -sf ../../src_mpc mpc)
+	$(if $(MPFR_SRCDIR),cd $@.tmp/gcc && ln -sf ../../src_mpfr mpfr)
+	$(if $(ISL_SRCDIR),cd $@.tmp/gcc && ln -sf ../../src_isl isl)
 	mv $@.tmp $@
 
 obj_%:
@@ -156,42 +171,67 @@ obj_sysroot/usr: | obj_sysroot
 obj_sysroot/lib64: | obj_sysroot
 	ln -sf lib $@
 
-obj_toolchain/.lc_configured: | obj_toolchain src_toolchain
-	cd obj_toolchain && ../src_toolchain/configure $(FULL_TOOLCHAIN_CONFIG)
+obj_toolchain/binutils/.lc_configured: | src_toolchain
+	mkdir -p obj_toolchain/binutils
+	cd obj_toolchain/binutils && ../../src_toolchain/binutils/configure $(FULL_TOOLCHAIN_CONFIG)
 	touch $@
 
-obj_toolchain/gcc/.lc_built: | obj_toolchain/.lc_configured
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" all-gcc
+obj_toolchain/binutils/.lc_built: | obj_toolchain/binutils/.lc_configured obj_sysroot
+	cd obj_toolchain/binutils && $(MAKE) MAKE="$(MAKE)"
+	cd obj_toolchain/binutils && $(MAKE) MAKE="$(MAKE)" DESTDIR=$(CURDIR)/obj_sysroot install
 	touch $@
 
-obj_musl/.lc_configured: | obj_musl src_musl
-	cd obj_musl && ../src_musl/configure $(FULL_GLIBC_CONFIG)
+obj_toolchain/gcc/.lc_configured: | obj_toolchain/binutils/.lc_built obj_kernel_headers/.lc_built
+	mkdir -p obj_toolchain/gcc
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" ../../src_toolchain/gcc/configure $(FULL_TOOLCHAIN_CONFIG)
 	touch $@
 
-obj_sysroot/.lc_headers: | obj_musl/.lc_configured obj_sysroot
-	cd obj_musl && $(MAKE) DESTDIR=$(CURDIR)/obj_sysroot install-headers
+obj_toolchain/gcc/.lc_stage1_built: | obj_toolchain/gcc/.lc_configured obj_sysroot/usr
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" all-gcc
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(CURDIR)/obj_sysroot install-gcc
 	touch $@
 
-obj_toolchain/$(TARGET)/libgcc/libgcc.a: | obj_sysroot/.lc_headers
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE) enable_shared=no" all-target-libgcc
-
-obj_musl/.lc_built: | obj_musl/.lc_configured
-	cd obj_musl && $(MAKE) $(GLIBC_VARS)
+obj_toolchain/glibc/.lc_configured: | obj_toolchain/gcc/.lc_stage1_built src_glibc
+	mkdir -p obj_toolchain/glibc
+	cd obj_toolchain/glibc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" ../../src_glibc/configure $(FULL_GLIBC_CONFIG)
 	touch $@
 
-obj_sysroot/.lc_libs: | obj_musl/.lc_built
-	cd obj_musl && $(MAKE) $(GLIBC_VARS) DESTDIR=$(CURDIR)/obj_sysroot install
+obj_toolchain/glibc/.lc_stage1_built: | obj_toolchain/glibc/.lc_configured
+	cd obj_toolchain/glibc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(CURDIR)/obj_sysroot install-bootstrap-headers=yes install-headers
+	cd obj_toolchain/glibc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" csu/subdir_lib
+	mkdir -p $(CURDIR)/obj_sysroot/lib
+	cd obj_toolchain/glibc && install csu/crt1.o csu/crti.o csu/crtn.o $(CURDIR)/obj_sysroot/lib
+	PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(TARGET)-gcc -nostdlib -nostartfiles -shared -x c /dev/null -o $(CURDIR)/obj_sysroot/lib/libc.so
+	touch $(CURDIR)/obj_sysroot/include/gnu/stubs.h
 	touch $@
 
-obj_toolchain/.lc_built: | obj_toolchain/.lc_configured obj_toolchain/gcc/.lc_built
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)"
+obj_toolchain/gcc/.lc_stage2_built: | obj_toolchain/glibc/.lc_stage1_built
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" all-target-libgcc
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(CURDIR)/obj_sysroot install-target-libgcc
 	touch $@
 
-install-musl: | obj_musl/.lc_built
-	cd obj_musl && $(MAKE) $(GLIBC_VARS) DESTDIR=$(DESTDIR)$(OUTPUT)$(SYSROOT) install
+obj_toolchain/glibc/.lc_stage2_built: | obj_toolchain/gcc/.lc_stage2_built
+	cd obj_toolchain/glibc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)"
+	cd obj_toolchain/glibc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(CURDIR)/obj_sysroot install
+	find obj_sysroot -name '*.info*' -print -delete
+	touch $@
 
-install-toolchain: | obj_toolchain/.lc_built
-	cd obj_toolchain && $(MAKE) MAKE="$(MAKE)" DESTDIR=$(DESTDIR)$(OUTPUT) install
+obj_toolchain/gcc/.lc_stage3_built: | obj_toolchain/glibc/.lc_stage2_built
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)"
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(CURDIR)/obj_sysroot install
+	touch $@
+
+install-glibc: | obj_toolchain/glibc/.lc_stage2_built
+	cd obj_toolchain/glibc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(DESTDIR)$(OUTPUT)$(SYSROOT) install-headers
+	cd obj_toolchain/glibc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(DESTDIR)$(OUTPUT)$(SYSROOT) install
+	find $(DESTDIR)$(OUTPUT) -name '*.info*' -print -delete
+	find $(DESTDIR)$(OUTPUT) -name 'dir' -print -delete
+
+install-toolchain: | obj_toolchain/gcc/.lc_stage3_built obj_toolchain/binutils/.lc_built
+	cd obj_toolchain/binutils && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(DESTDIR)$(OUTPUT) install
+	cd obj_toolchain/gcc && PATH="$(CURDIR)/obj_sysroot/bin:$(PATH)" $(MAKE) MAKE="$(MAKE)" DESTDIR=$(DESTDIR)$(OUTPUT) install
+	find $(DESTDIR)$(OUTPUT) -name '*.info*' -print -delete
+	find $(DESTDIR)$(OUTPUT) -name 'dir' -print -delete
 	ln -sf $(TARGET)-gcc $(DESTDIR)$(OUTPUT)/bin/$(TARGET)-cc
 
 ifneq ($(LINUX_SRCDIR),)
@@ -209,6 +249,8 @@ obj_kernel_headers/.lc_built: | src_kernel_headers
 	mkdir -p $(CURDIR)/obj_kernel_headers/staged
 	cd src_kernel_headers && $(MAKE) ARCH=$(LINUX_ARCH) O=$(CURDIR)/obj_kernel_headers INSTALL_HDR_PATH=$(CURDIR)/obj_kernel_headers/staged headers_install
 	find obj_kernel_headers/staged/include '(' -name .install -o -name ..install.cmd ')' -exec rm {} +
+	mkdir -p $(CURDIR)/obj_sysroot/include
+	cp -R obj_kernel_headers/staged/include/* $(CURDIR)/obj_sysroot/include/
 	touch $@
 install-kernel-headers: | obj_kernel_headers/.lc_built
 	mkdir -p $(DESTDIR)$(OUTPUT)$(SYSROOT)/include

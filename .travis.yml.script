@@ -2,16 +2,17 @@
 set -e
 
 target=$1
+gccver=$2
 
-if [[ -z "$target" ]]; then
-    printf 'Usage: %s <target>\n' "$0"
+if [[ -z "$gccver" ]]; then
+    printf 'Usage: %s <target> <gcc-version>\n' "$0"
     exit 1
 fi
 
 declare -A versions
 versions[binutils]=2.28.1
-versions[gcc]=7.2.0
-versions[musl]=1.1.18
+versions[gcc]=$gccver
+versions[glibc]=2.19
 versions[gmp]=6.1.2
 versions[mpc]=1.0.3
 versions[mpfr]=3.1.6
@@ -19,6 +20,7 @@ versions[isl]=0.18
 versions[linux]=4.4.10
 
 printf 'TARGET = %s\n' "$target" > config.mak
+printf 'BUILD = %s\n' "x86_64-linux-musl" >> config.mak
 
 printf 'COMMON_CONFIG += --disable-nls\n' >> config.mak
 printf 'COMMON_CONFIG += CFLAGS="-g0 -Os" CXXFLAGS="-g0 -Os" LDFLAGS="-s"\n' >> config.mak
@@ -28,7 +30,7 @@ printf 'GCC_CONFIG += --disable-multilib\n' >> config.mak
 
 printf 'BINUTILS_VER = %s\n' "${versions[binutils]}" >> config.mak
 printf 'GCC_VER = %s\n' "${versions[gcc]}" >> config.mak
-printf 'MUSL_VER = %s\n' "${versions[musl]}" >> config.mak
+printf 'GLIBC_VER = %s\n' "${versions[glibc]}" >> config.mak
 printf 'GMP_VER = %s\n' "${versions[gmp]}" >> config.mak
 printf 'MPC_VER = %s\n' "${versions[mpc]}" >> config.mak
 printf 'MPFR_VER = %s\n' "${versions[mpfr]}" >> config.mak
@@ -40,24 +42,30 @@ mkdir -p dist
 mkdir -p output
 mkdir -p tools
 
-mkdir -p tools/gcc-i486-linux-musl
-curl -R -L -o tools/gcc-i486-linux-musl.tar.gz "https://github.com/just-containers/musl-cross-make/releases/download/v5/gcc-7.2.0-i486-linux-musl.tar.gz"
-tar xf tools/gcc-i486-linux-musl.tar.gz -C tools/gcc-i486-linux-musl
+mkdir -p tools/gcc-x86_64-linux-musl
+curl -R -L -o tools/gcc-x86_64-linux-musl.tar.xz "https://github.com/just-containers/musl-cross-make/releases/download/v7/gcc-4.9.4-x86_64-linux-musl.tar.xz"
+tar xf tools/gcc-x86_64-linux-musl.tar.xz -C tools/gcc-x86_64-linux-musl
 
-printf 'COMMON_CONFIG += CC="i486-linux-musl-gcc -static --static" CXX="i486-linux-musl-g++ -static --static"\n' >> config.mak
+printf 'COMMON_CONFIG += CC="x86_64-linux-musl-gcc -static --static" CXX="x86_64-linux-musl-g++ -static --static"\n' >> config.mak
 
-export PATH="$(pwd)/tools/gcc-i486-linux-musl/bin:$PATH"
+export PATH="$(pwd)/tools/gcc-x86_64-linux-musl/bin:$PATH"
 
-make >log/${target} 2>&1
-make install >>log/${target} 2>&1
-make clean >>log/${target} 2>&1
+make >log/gcc-$gccver-${target} 2>&1
+make install >>log/gcc-$gccver-${target} 2>&1
+make clean >>log/gcc-$gccver-${target} 2>&1
 
-tar -czf "dist/gcc-${versions[gcc]}-${target}.tar.gz" \
+tar -cJf "dist/gcc-${versions[gcc]}-${target}.tar.xz" \
   --owner 0 \
   --group 0 \
  -C output .
 
 rm -rf output
+
+rm -f dist/gcc-$gccver-manifest.txt
+touch dist/gcc-$gccver-manifest.txt
+for i in "${!versions[@]}"; do
+    printf '%s=%s\n' "${i}" "${versions[$i]}" >> dist/gcc-$gccver-manifest.txt
+done
 
 # exit if TRAVIS_TAG is empty, no need to release anything
 if [ -z "${TRAVIS_TAG}" ]; then
@@ -75,13 +83,7 @@ REPONAME=$(echo ${TRAVIS_REPO_SLUG} | cut -d"/" -f2)
 
 rm -f dist/release.md
 touch dist/release.md
-printf 'Built using `musl-%s`, `linux-headers-%s`\n' "${versions[musl]}" "${versions[linux]}" >> dist/release.md
-
-rm -f dist/manifest.txt
-touch dist/manifest.txt
-for i in "${!versions[@]}"; do
-    printf '%s=%s\n' "${i}" "${versions[$i]}" >> dist/manifest.txt
-done
+printf 'Built using `glibc-%s`, `linux-headers-%s`\n' "${versions[glibc]}" "${versions[linux]}" >> dist/release.md
 
 # release
 ./github-release release \
@@ -89,21 +91,21 @@ done
   --repo "${REPONAME}" \
   --tag "${TRAVIS_TAG}" \
   --name "${TRAVIS_TAG}" \
-  --description "$(cat dist/release.md)" >>log/${target} 2>&1 || true
+  --description "$(cat dist/release.md)" >>log/gcc-$gccver-${target} 2>&1 || true
 
 # manifest
 ./github-release upload \
   --user "${USERNAME}" \
   --repo "${REPONAME}" \
   --tag "${TRAVIS_TAG}" \
-  --name "manifest.txt" \
-  --file "dist/manifest.txt" >>log/${target} 2>&1 || true
+  --name "gcc-$gccver-manifest.txt" \
+  --file "dist/gcc-$gccver-manifest.txt" >>log/gcc-$gccver-${target} 2>&1 || true
 
 # compiled gcc
 ./github-release upload \
   --user "${USERNAME}" \
   --repo "${REPONAME}" \
   --tag "${TRAVIS_TAG}" \
-  --name "gcc-${versions[gcc]}-${target}.tar.gz" \
-  --file "dist/gcc-${versions[gcc]}-${target}.tar.gz" >>log/${target} 2>&1
+  --name "gcc-${versions[gcc]}-${target}.tar.xz" \
+  --file "dist/gcc-${versions[gcc]}-${target}.tar.xz" >>log/gcc-$gccver-${target} 2>&1
 

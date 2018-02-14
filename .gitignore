@@ -1,6 +1,7 @@
 /log
 /tools
 /dist
+/build
 /config.mak
 /sources/
 /output/
@@ -12,3 +13,5 @@
 /mpfr-*/
 /build-*/
 /linux-*/
+/glibc-*/
+/isl-*/

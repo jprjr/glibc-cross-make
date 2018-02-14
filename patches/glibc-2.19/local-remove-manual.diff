@@ -1,0 +1,26 @@
+diff --git a/sysdeps/gnu/Makefile b/sysdeps/gnu/Makefile
+index c05708d..6364ba8 100644
+--- a/sysdeps/gnu/Makefile
++++ b/sysdeps/gnu/Makefile
+@@ -18,7 +18,7 @@
+ # Generate the list of strings for errno codes from the section of the
+ # manual which documents the codes.
+ 
+-$(..)sysdeps/gnu/errlist.c: $(..)sysdeps/gnu/errlist.awk \
++$(..)sysdeps/gnu/errlist-disabled.c: $(..)sysdeps/gnu/errlist.awk \
+ 			    $(..)manual/errno.texi
+ 	$(AWK) -f $^ > $@-tmp
+ # Make it unwritable so noone will edit it by mistake.
+diff --git a/sysdeps/mach/hurd/Makefile b/sysdeps/mach/hurd/Makefile
+index fe02831..9f92b28 100644
+--- a/sysdeps/mach/hurd/Makefile
++++ b/sysdeps/mach/hurd/Makefile
+@@ -85,7 +85,7 @@ $(common-objpfx)errnos.d: $(mach-errnos-deps)
+ 	    -e 's, \.\./, $(..),g' > $@t
+ 	mv -f $@t $@
+ 
+-$(hurd)/bits/errno.h: $(common-objpfx)stamp-errnos ;
++$(hurd)/bits/errno-disabled.h: $(common-objpfx)stamp-errnos ;
+ $(common-objpfx)stamp-errnos: $(hurd)/errnos.awk $(errno.texinfo) \
+ 			      $(mach-errnos-deps) $(common-objpfx)errnos.d
+ 	$(AWK) -f $^ > $(hurd)/bits/errno.h-tmp
